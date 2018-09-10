@@ -1,0 +1,9 @@
+---
+- hosts: appserver
+  gather_facts: yes
+  tasks:
+    - name: install httpd
+	  yum: name=httpd state=installed 
+	  
+	- name: start service
+	  service: name=httpd state=started
