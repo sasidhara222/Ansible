@@ -1,0 +1,92 @@
+#!/bin/bash
+
+#List of servers 
+SERVERS_LIST='/vagrant/servers'
+
+#ssh options while executing the script
+SSH_OPTIONS='-o ConnectTimeout=2'
+
+usage(){
+	#Display the usage and exit.
+	echo "Usage: ${0} [-nsv] [-f FILE] COMMAND" >&2
+	echo "Executes COMMAND as a single command on every server." >&2
+	echo "  -f FILE Use FILE for the list the servers. Default is ${SERVERS_LIST} " >&2
+	echo "  -n Dry run mode. Display the COMMAND that would have been executed and exit." >&2
+	echo "  -s Executes the COMMAND as sudo user." >&2
+	echo "  -v Verbose mode. Display the name of the server before executing the COMMAND." >&2
+	exit 1
+}
+
+#Make sure the script without sudo privillages.
+if [[ "${UID}" -eq 0 ]]
+then
+  echo "Do not run the script as sudo user, use -s option instead"
+  usage
+fi
+
+#Parse the options 
+
+while getopts f:nsv OPTION
+do 
+  case ${OPTION} in
+  f) SERVERS_LIST="${OPTARGS}" ;;
+  n) DRY_RUN='true' ;;
+  s) SUDO='sudo' ;;
+  v) VERBOSE='true' ;;
+  ?) usage ;;
+  esac
+done
+
+#Remove the options while leaving remaining options.
+shift "$(( OPTIND - 1))"
+
+#If user does not give atleast one argument, give them help.
+if [[ "${#}" -lt 1 ]]
+then
+   usage
+fi
+
+#Anything that reamain is consider as single command.
+COMMAND="${@}"
+
+#Make sure the SERVER_LIST file exists.
+if [[ ! -e "${SERVERS_LIST}" ]]
+then
+  echo " ${SERVERS_LIST} does not exists. " >&2
+  exit 1
+fi
+
+#Expect the best, prepare for the worst.
+EXIT_STATUS='0'
+
+#Loop through the server list.
+for SERVER in $(cat ${SERVERS_LIST})
+do
+  if [[ "${VERBOSE}" = 'true' ]]
+  then
+     echo "${SERVER}"
+  fi
+
+	   SSH_COMMAND="ssh ${SSH_OPTIONS} ${SERVER} ${SUDO} ${COMMAND}"
+	   
+	   #If DRY_RUN is true, the show the ssh_command is being executed.
+		   if [[ "${DRY_RUN}" = 'true' ]]
+		   then
+			 echo "DRY RUN: ${SSH_COMMAND}" >&2
+		   else
+			 ${SSH_COMMAND}
+			 SSH_EXIT_STATUS="${?}"
+			 
+			 #capture any non-zero exit status and report to user.
+				 if [[ "${SSH_EXIT_STATUS}" -ne 0 ]]
+				 then
+				   $EXIT_STATUS="${SSH_EXIT_STATUS}" >&2
+				   echo "Execution on ${SERVER} failed."  >&2
+				 fi
+			fi
+done
+
+exit=${EXIT_STATUS}	  
+
+     
+
